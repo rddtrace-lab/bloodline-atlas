@@ -116,8 +116,20 @@ footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
   <div class="card"><h2>Samples by year made public</h2><p class="sub">Samples per year</p><div id="c-year"></div></div>
 </div>
 
+<section id="validation-sec">
+  <h2>Accuracy validation</h2>
+  <div class="grid2">
+    <div class="card"><h2>Against a human-curated reference</h2>
+      <p class="sub">Gemma (UBC) curators annotate each dataset's design by hand. Labels compared sample by sample; 95% CIs from a bootstrap over datasets. <a href="VALIDATION.md">Method</a></p>
+      <div class="scroll" id="val"></div></div>
+    <div class="card"><h2>Against the RNA itself</h2>
+      <p class="sub">ARCHS4 expression: within-study AUCs pooled by random-effects meta-analysis (0.5 = no signal). <a href="VALIDATION.md">Method</a></p>
+      <div class="scroll" id="bio"></div></div>
+  </div>
+</section>
+
 <section id="quality-sec">
-  <h2>Label quality</h2>
+  <h2>Internal consistency tests</h2>
   <div class="card"><p class="sub">Tests run without human annotation (references built from the structured fields by rules written apart from the model). Values: share, 95% CI, n.</p>
   <div class="scroll" id="quality"></div></div>
 </section>
@@ -129,6 +141,7 @@ footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
       <input type="search" id="q" placeholder="Search title or accession (PRJNA…, GSE…)" aria-label="Search studies">
       <select id="fclass" aria-label="Sample type"><option value="">All sample types</option></select>
       <select id="fevent" aria-label="Event"><option value="">All events</option></select>
+      <select id="fsc" aria-label="Single-cell"><option value="">Bulk + single-cell</option><option value="bulk">Bulk only</option><option value="sc">Single-cell only</option></select>
       <select id="faccess" aria-label="Access"><option value="">Open + controlled</option><option value="open">Open reads</option><option value="controlled">Controlled (dbGaP)</option></select>
     </div>
     <div class="controls">
@@ -209,6 +222,36 @@ function cols(el, rows) {
 const pct = v => Array.isArray(v) ? `${(100 * v[0]).toFixed(1)}% <span class="muted">(${(100 * v[1]).toFixed(1)}–${(100 * v[2]).toFixed(1)}, n=${fmt(v[3])})</span>` : (v == null ? '<span class="muted">—</span>' : esc(v));
 const QNAMES = {T1_structured_fields: "T1 Structured fields", T2_masked_fields: "T2 Fields masked", T3_timing: "T3 Timing",
   T4_healthy_controls: "T4 Healthy controls", T5_in_vitro: "T5 In vitro samples", T6_student_vs_teacher: "T6 Student vs teacher", coverage: "Coverage"};
+const ci = v => Array.isArray(v) ? `${v[0].toFixed(2)} <span class="muted">(${v[1].toFixed(2)}–${v[2].toFixed(2)})</span>` : (v == null ? '<span class="muted">—</span>' : (typeof v === "number" ? v.toFixed(2) : esc(v)));
+function validation(v, events) {
+  if (!v) { $("#val").innerHTML = '<p class="muted" style="font-size:13px">Running; results appear here with the labelled release.</p>'; return; }
+  const cols = ["sensitivity", "specificity", "precision", "f1", "kappa"];
+  let h = `<p class="kv">Reference: <b>${fmt(v.reference.samples)}</b> samples, <b>${fmt(v.reference.datasets)}</b> datasets, ${fmt(v.reference.positives)} positives, ${fmt(v.reference.negatives)} negatives</p>
+    <table><tr><th>Method</th>${cols.map(c => `<th>${c}</th>`).join("")}<th class="n">n</th></tr>`;
+  for (const [k, name] of [["model_sample", "Model (sample text)"], ["model_sample_or_study", "Model (+ study text)"], ["keyword_baseline", "Keyword baseline"]]) {
+    const p = v[k]?.pooled; if (!p) continue;
+    h += `<tr><td>${name}</td>${cols.map(c => `<td>${ci(p[c])}</td>`).join("")}<td class="n">${fmt(p.n)}</td></tr>`;
+  }
+  h += "</table>";
+  const per = v.model_sample?.by_event || {};
+  if (Object.keys(per).length) h += `<details class="tv"><summary>By event</summary><table><tr><th>Event</th><th>sensitivity</th><th>specificity</th><th>kappa</th><th class="n">n</th></tr>${Object.entries(per).map(([e, p]) => `<tr><td>${esc(events[e] || e)}</td><td>${ci(p.sensitivity)}</td><td>${ci(p.specificity)}</td><td>${ci(p.kappa)}</td><td class="n">${fmt(p.n)}</td></tr>`).join("")}</table></details>`;
+  if (v.timing) h += `<p class="kv">Timing vs curated time points: bucket agreement <b>${ci(v.timing.bucket_agreement)}</b>, within 1 day <b>${ci(v.timing.within_1_day)}</b> (n=${fmt(v.timing.model_gave_a_time)})</p>`;
+  if (v.curated_controls) h += `<p class="kv">Curated controls with any event label: <b>${ci(v.curated_controls.any_event)}</b> (n=${fmt(v.curated_controls.n)})</p>`;
+  $("#val").innerHTML = h;
+}
+function bio(b) {
+  if (!b) { $("#bio").innerHTML = '<p class="muted" style="font-size:13px">Running; results appear here with the labelled release.</p>'; return; }
+  const rows = [["B2_viral_interferon", "Viral infection → interferon score"], ["B3_bacterial_neutrophil", "Bacterial infection / sepsis → neutrophil score"],
+    ["B4_vaccine_day1_3_interferon", "Vaccination, day 1–3 → interferon"], ["B4_vaccine_day6_8_plasmablast", "Vaccination, day 6–8 → plasmablasts"]];
+  let h = '<table><tr><th>Test</th><th>Pooled AUC (95% CI)</th><th class="n">Studies</th></tr>';
+  for (const [k, name] of rows) {
+    const p = b[k]?.pooled_auc;
+    h += `<tr><td>${name}</td><td>${p ? `${p.estimate.toFixed(2)} <span class="muted">(${p.lo.toFixed(2)}–${p.hi.toFixed(2)})</span>` : '<span class="muted">too few studies</span>'}</td><td class="n">${fmt(b[k]?.studies ?? 0)}</td></tr>`;
+  }
+  h += "</table>";
+  if (b.B1_sex) h += `<p class="kv">RNA-predicted sex vs sex field: <b>${(100 * b.B1_sex.agreement).toFixed(1)}%</b> agree (n=${fmt(b.B1_sex.samples)}; ${fmt(b.B1_sex.mismatches)} mismatches flagged)</p>`;
+  $("#bio").innerHTML = h;
+}
 function quality(q) {
   if (!q) { $("#quality").innerHTML = '<p class="muted" style="font-size:13px">Quality tests have not been run on this release yet.</p>'; return; }
   let h = '<table><tr><th>Test</th><th>Measure</th><th>Result</th></tr>';
@@ -227,11 +270,11 @@ const PER = 50;
 function render() {
   const q = $("#q").value.trim().toLowerCase(), c = $("#fclass").value, ev = $("#fevent").value, ac = $("#faccess").value;
   view = studies.filter(s => (!q || s.study_accession.toLowerCase().includes(q) || (s.title || "").toLowerCase().includes(q) || (s.geo_series || "").toLowerCase().includes(q))
-    && (!c || s.classes[c]) && (!ev || s.events[ev] || (s.study_events || []).includes(ev)) && (!ac || s.access === ac));
+    && (!c || s.classes[c]) && (!ev || s.events[ev] || (s.study_events || []).includes(ev)) && (!ac || s.access === ac) && (!$("#fsc").value || ($("#fsc").value === "sc") === (s.single_cell > 0)));
   page = Math.min(page, Math.max(0, Math.ceil(view.length / PER) - 1));
   const rows = view.slice(page * PER, page * PER + PER);
   $("#st tbody").innerHTML = rows.map(s => `<tr class="click" data-a="${esc(s.study_accession)}">
-    <td><code>${esc(s.study_accession)}</code>${s.access === "controlled" ? '<br><span class="muted">dbGaP</span>' : ""}</td>
+    <td><code>${esc(s.study_accession)}</code>${s.access === "controlled" ? '<br><span class="muted">dbGaP</span>' : ""}${s.single_cell ? '<br><span class="muted">single-cell</span>' : ""}</td>
     <td>${esc(s.title)}</td><td class="n">${fmt(s.n_samples)}</td>
     <td>${Object.keys(s.classes).map(k => `<span class="chip">${esc(S.names[k] || k)}</span>`).join("")}</td>
     <td>${Object.keys(s.events).slice(0, 4).map(k => `<span class="chip">${esc(S.events[k] || k)}</span>`).join("")}${(s.study_events || []).filter(k => !s.events[k]).slice(0, 3).map(k => `<span class="chip" style="background:none;border:1px solid var(--border)" title="from the study description">${esc(S.events[k] || k)}</span>`).join("") || (Object.keys(s.events).length ? "" : '<span class="muted">—</span>')}</td>
@@ -270,7 +313,7 @@ async function findAcc() {
   S = {names: Object.fromEntries(sum.by_class.map(c => [c.code, c.name])), events: idx.fields["labels.event_code"]};
   const c = sum.counts;
   $("#gen").textContent = `Release ${sum.version} · ${sum.generated}`;
-  $("#tiles").innerHTML = [["Samples", c.samples, `${fmt(c.open_samples)} with open reads`], ["Studies", c.studies, "BioProjects"],
+  $("#tiles").innerHTML = [["Samples", c.samples, `${fmt(c.open_samples)} open reads · ${fmt(c.single_cell_samples ?? 0)} single-cell`], ["Studies", c.studies, "BioProjects"],
     ["Runs", c.runs, "SRR / ERR / DRR"], ["Samples labelled", c.samples_labelled, `${fmt(c.label_rows)} label rows`]]
     .map(([k, v, s]) => `<div class="tile"><div class="k">${k}</div><div class="v">${fmt(v)}</div><div class="s">${s}</div></div>`).join("");
   hbars($("#c-class"), sum.by_class, r => r.name, r => r.samples, "samples");
@@ -278,11 +321,13 @@ async function findAcc() {
   hbars($("#c-time"), sum.time_buckets.filter(b => b.labels), r => r.name, r => r.labels, "labels");
   cols($("#c-year"), sum.by_year);
   quality(sum.quality);
+  validation(sum.validation, idx.fields["labels.event_code"]);
+  bio(sum.biocheck);
   for (const k of sum.by_class) $("#fclass").insertAdjacentHTML("beforeend", `<option value="${k.code}">${esc(k.name)}</option>`);
   for (const e of sum.events) $("#fevent").insertAdjacentHTML("beforeend", `<option value="${e.code}">${esc(e.name)}</option>`);
   $("#files").innerHTML = Object.entries(idx.endpoints.bulk).map(([k, fs]) => `<div style="margin:4px 0"><b style="font-weight:600">${k}</b>: ${fs.map(f => `<a href="${f}">${f.split("/").pop()}</a>`).join(", ")}</div>`).join("");
   studies = st; render();
-  ["#q", "#fclass", "#fevent", "#faccess"].forEach(s => $(s).addEventListener("input", () => { page = 0; render(); }));
+  ["#q", "#fclass", "#fevent", "#faccess", "#fsc"].forEach(s => $(s).addEventListener("input", () => { page = 0; render(); }));
   $("#prev").onclick = () => { page = Math.max(0, page - 1); render(); };
   $("#next").onclick = () => { page++; render(); };
   $("#go").onclick = findAcc; $("#acc").addEventListener("keydown", e => e.key === "Enter" && findAcc());
