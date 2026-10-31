@@ -1,0 +1,51 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Blood RNA-seq Atlas (static API)",
+    "version": "0.1",
+    "description": "Public human blood RNA-seq samples from SRA/ENA with BioSample metadata, runs and event labels relative to the blood draw. Every endpoint is a static JSON file; servers[0] is the folder that holds this file."
+  },
+  "servers": [{"url": "."}],
+  "paths": {
+    "/api/index.json": {"get": {"operationId": "getIndex", "summary": "Counts, endpoints, field definitions, licence",
+      "responses": {"200": {"description": "Index", "content": {"application/json": {}}}}}},
+    "/api/summary.json": {"get": {"operationId": "getSummary", "summary": "Aggregates: sample types, events, time buckets, quality tests",
+      "responses": {"200": {"description": "Summary", "content": {"application/json": {}}}}}},
+    "/api/studies.json": {"get": {"operationId": "listStudies", "summary": "Every study with sample counts, sample types and events",
+      "responses": {"200": {"description": "Study list", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/StudyListItem"}}}}}}}},
+    "/api/studies/{study_accession}.json": {"get": {"operationId": "getStudy", "summary": "One study with all samples, attributes, runs and labels",
+      "parameters": [{"name": "study_accession", "in": "path", "required": true, "schema": {"type": "string", "examples": ["PRJNA123456"]}}],
+      "responses": {"200": {"description": "Study", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Study"}}}}, "404": {"description": "Not in this release"}}}},
+    "/api/lookup/{suffix}.json": {"get": {"operationId": "lookupAccession", "summary": "Sample/run accession -> study accession, sharded by the accession's last two characters",
+      "parameters": [{"name": "suffix", "in": "path", "required": true, "schema": {"type": "string", "pattern": "^[0-9A-Za-z]{2}$"}}],
+      "responses": {"200": {"description": "Map of accession to study_accession", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": {"type": "string"}}}}}}}}
+  },
+  "components": {"schemas": {
+    "StudyListItem": {"type": "object", "properties": {
+      "study_accession": {"type": "string"}, "title": {"type": "string"}, "n_samples": {"type": "integer"}, "n_runs": {"type": "integer"},
+      "classes": {"type": "object", "additionalProperties": {"type": "integer"}}, "events": {"type": "object", "additionalProperties": {"type": "integer"}},
+      "study_events": {"type": "array", "items": {"type": "string"}, "description": "events named in the study description"}, "geo_series": {"type": "string"}, "pubmed": {"type": "string"}, "access": {"enum": ["open", "controlled"]}, "first_public": {"type": "string"}}},
+    "Label": {"type": "object", "properties": {
+      "level": {"enum": ["sample", "study"]}, "event_code": {"type": "string"},
+      "certainty": {"enum": ["confirmed", "suspected", "ruled_out", "family_history", "history", "not_event"]},
+      "delta_days": {"type": ["number", "null"], "description": "event time minus blood-draw time, days"},
+      "delta_bucket": {"type": "string"}, "time_precision": {"type": "string"}, "stage": {"type": "string"},
+      "confidence": {"type": "number"}, "evidence": {"type": "string"}, "model_version": {"type": "string"}}},
+    "Run": {"type": "object", "properties": {
+      "run_accession": {"type": "string"}, "experiment_accession": {"type": "string"}, "library_layout": {"type": "string"},
+      "library_selection": {"type": "string"}, "instrument_model": {"type": "string"}, "read_count": {"type": "integer"},
+      "base_count": {"type": "integer"}, "first_public": {"type": "string"}, "experiment_title": {"type": "string"}}},
+    "Sample": {"type": "object", "properties": {
+      "sample_accession": {"type": "string"}, "study_accession": {"type": "string"},
+      "blood_class": {"enum": ["whole_blood", "pbmc", "blood_cells", "plasma_serum_cfrna", "platelet", "cord_blood", "bone_marrow"]},
+      "class_from": {"enum": ["sample", "study"]}, "title": {"type": "string"}, "description": {"type": "string"}, "sex": {"type": "string"},
+      "geo_sample": {"type": "string"}, "access": {"enum": ["open", "controlled"]}, "dbgap": {"type": "string"}, "n_runs": {"type": "integer"},
+      "attributes": {"type": "array", "items": {"type": "array", "prefixItems": [{"type": "string"}, {"type": "string"}]}},
+      "runs": {"type": "array", "items": {"$ref": "#/components/schemas/Run"}},
+      "labels": {"type": "array", "items": {"$ref": "#/components/schemas/Label"}}}},
+    "Study": {"type": "object", "properties": {
+      "study_accession": {"type": "string"}, "secondary_study_accession": {"type": "string"}, "title": {"type": "string"},
+      "description": {"type": "string"}, "pubmed": {"type": "string"}, "geo_series": {"type": "string"}, "n_samples": {"type": "integer"},
+      "samples": {"type": "array", "items": {"$ref": "#/components/schemas/Sample"}}}}
+  }}
+}

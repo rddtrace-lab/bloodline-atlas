@@ -1,0 +1,31 @@
+# Blood RNA-seq Atlas
+
+> Public human blood RNA-seq samples from SRA/ENA (whole blood, PBMC, sorted blood cells, plasma/serum RNA, platelets, cord blood, bone marrow), each with all its BioSample metadata, its sequencing runs, and machine-made event labels: what happened to the donor (infection, sepsis, vaccination, viral challenge, surgery, transplant, ...) and when, as days from the event to the blood draw. Static JSON, CORS open, no key.
+
+All paths are relative to this file's location.
+
+## Start here
+
+- [api/index.json](api/index.json): counts, endpoint list, field definitions (event codes, certainty values, time buckets), licence
+- [api/summary.json](api/summary.json): aggregates (sample types, events, time buckets, quality-test results)
+- [openapi.json](openapi.json): the same endpoints as an OpenAPI 3.1 description
+
+## Endpoints
+
+- [api/studies.json](api/studies.json): every study: study_accession, title, n_samples, n_runs, classes (sample type -> count), events (event -> samples), geo_series, pubmed, access
+- api/studies/{study_accession}.json: one study (e.g. PRJNA123456) with every sample: attributes [[name, value], ...], runs (run_accession, layout, instrument, read_count, ...), labels
+- api/lookup/{XX}.json: map of sample and run accessions to study_accession, where XX is the last two characters of the accession (SRR12345678 -> api/lookup/78.json)
+- data/samples.csv.gz, data/runs.csv.gz, data/attributes.csv.gz, data/studies.csv.gz, data/labels.csv.gz: bulk tables (big ones split into -2, -3 ... parts; api/index.json lists the parts)
+
+## Labels
+
+- level: "sample" (read from the sample's own metadata) or "study" (from the study description; applies to all its samples)
+- event_code: one of 37 events (api/index.json fields."labels.event_code")
+- certainty: confirmed, suspected, ruled_out, family_history, history, not_event
+- delta_days: event time minus blood-draw time in days (negative = before the draw); delta_bucket groups it
+- stage: student (trained classifier) or teacher (local LLM); labels are machine-made: check api/summary.json quality before relying on them
+
+## Notes
+
+- access "controlled": the metadata is public but the reads need dbGaP approval
+- Reads themselves are not here: fetch them from SRA/ENA by run accession

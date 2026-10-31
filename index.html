@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blood RNA-seq Atlas</title>
+<meta name="description" content="Public human blood RNA-seq samples from SRA/ENA with harmonised metadata and event labels relative to the blood draw. Static JSON API for people and agents.">
+<link rel="alternate" type="application/json" href="api/index.json" title="API index">
+<link rel="alternate" type="text/plain" href="llms.txt" title="llms.txt">
+<style>
+:root {
+  color-scheme: light;
+  --surface-0: #f4f3f0; --surface-1: #fcfcfb; --border: #e2e1dc; --grid: #ebeae6;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #77766f;
+  --series-1: #2a78d6; --series-1-hover: #1c5cab; --accent-soft: #e6effa;
+  --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-0: #121211; --surface-1: #1a1a19; --border: #33332f; --grid: #2a2a27;
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #9a998f;
+    --series-1: #3987e5; --series-1-hover: #6da7ec; --accent-soft: #1d2a3a;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0: #121211; --surface-1: #1a1a19; --border: #33332f; --grid: #2a2a27;
+  --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #9a998f;
+  --series-1: #3987e5; --series-1-hover: #6da7ec; --accent-soft: #1d2a3a;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--surface-0); color: var(--text-primary);
+       font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+a { color: var(--series-1); }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 24px 16px 64px; }
+header h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.01em; }
+header p { margin: 0; color: var(--text-secondary); max-width: 760px; }
+.links { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 14px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 24px 0; }
+.tile, .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; }
+.tile { padding: 14px 16px; }
+.tile .k { font-size: 13px; color: var(--text-secondary); }
+.tile .v { font-size: 28px; font-weight: 650; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.tile .s { font-size: 12px; color: var(--text-muted); }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 16px; }
+.card { padding: 16px; min-width: 0; }
+.card h2 { font-size: 16px; margin: 0 0 2px; }
+.card .sub { font-size: 13px; color: var(--text-secondary); margin: 0 0 12px; }
+section { margin-top: 28px; }
+section > h2 { font-size: 19px; margin: 0 0 10px; }
+.bars { position: relative; }
+.bar-row { display: grid; grid-template-columns: minmax(90px, 38%) 1fr auto; align-items: center; gap: 8px;
+           padding: 3px 0; font-size: 13px; cursor: default; }
+.bar-row .lab { color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-row .track { height: 14px; position: relative; }
+.bar-row .fill { height: 100%; background: var(--series-1); border-radius: 0 4px 4px 0; min-width: 2px; }
+.bar-row:hover .fill { background: var(--series-1-hover); }
+.bar-row .num { font-variant-numeric: tabular-nums; color: var(--text-primary); min-width: 54px; text-align: right; }
+.cols { display: flex; align-items: flex-end; gap: 2px; height: 150px; border-bottom: 1px solid var(--grid); }
+.cols .c { flex: 1; background: var(--series-1); border-radius: 4px 4px 0 0; min-height: 1px; }
+.cols .c:hover { background: var(--series-1-hover); }
+.axis { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+#tip { position: fixed; pointer-events: none; background: var(--surface-1); color: var(--text-primary);
+       border: 1px solid var(--border); border-radius: 6px; padding: 6px 9px; font-size: 13px; box-shadow: 0 4px 14px rgba(0,0,0,.12);
+       display: none; z-index: 10; max-width: 280px; }
+details.tv { margin-top: 8px; font-size: 13px; }
+details.tv summary { color: var(--text-secondary); cursor: pointer; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+th { color: var(--text-secondary); font-weight: 600; position: sticky; top: 0; background: var(--surface-1); }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+input, select, button { font: inherit; font-size: 14px; color: var(--text-primary); background: var(--surface-1);
+                        border: 1px solid var(--border); border-radius: 6px; padding: 6px 9px; }
+input[type=search] { flex: 1 1 240px; min-width: 0; }
+button { cursor: pointer; }
+button:hover { border-color: var(--series-1); }
+.scroll { overflow-x: auto; max-height: 560px; overflow-y: auto; }
+tr.click { cursor: pointer; }
+tr.click:hover td { background: var(--accent-soft); }
+.chip { display: inline-block; font-size: 12px; padding: 1px 7px; border-radius: 10px; background: var(--accent-soft);
+        color: var(--text-primary); margin: 1px 3px 1px 0; white-space: nowrap; }
+.muted { color: var(--text-muted); }
+.pager { display: flex; gap: 8px; align-items: center; margin-top: 8px; font-size: 13px; color: var(--text-secondary); }
+#detail { display: none; }
+#detail.open { display: block; }
+.kv { font-size: 12px; color: var(--text-secondary); }
+.kv b { color: var(--text-primary); font-weight: 500; }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+pre { background: var(--surface-0); border: 1px solid var(--border); border-radius: 6px; padding: 10px; overflow-x: auto; }
+.status { display: inline-flex; align-items: center; gap: 4px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
+@media (max-width: 560px) { .bar-row { grid-template-columns: 34% 1fr auto; } header h1 { font-size: 22px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Blood RNA-seq Atlas</h1>
+  <p>Public human blood RNA-seq samples from SRA/ENA, with every BioSample field, the run accessions, and event labels:
+     what happened to the donor (infection, vaccination, surgery, …) and when, relative to the blood draw.</p>
+  <div class="links">
+    <a href="api/index.json">API index</a><a href="llms.txt">llms.txt</a><a href="openapi.json">OpenAPI</a>
+    <a href="#bulk">Bulk download</a><a href="#agents">For agents</a><span class="muted" id="gen"></span>
+  </div>
+</header>
+
+<div class="tiles" id="tiles"></div>
+
+<div class="grid2">
+  <div class="card"><h2>Sample types</h2><p class="sub">Samples per blood sample type</p><div id="c-class" class="bars"></div></div>
+  <div class="card"><h2>Events in the donor</h2><p class="sub">Samples with the event confirmed or suspected in their own metadata</p><div id="c-events" class="bars"></div></div>
+  <div class="card"><h2>When, relative to the draw</h2><p class="sub">Labels by time from event to blood draw</p><div id="c-time" class="bars"></div></div>
+  <div class="card"><h2>Samples by year made public</h2><p class="sub">Samples per year</p><div id="c-year"></div></div>
+</div>
+
+<section id="quality-sec">
+  <h2>Label quality</h2>
+  <div class="card"><p class="sub">Tests run without human annotation (references built from the structured fields by rules written apart from the model). Values: share, 95% CI, n.</p>
+  <div class="scroll" id="quality"></div></div>
+</section>
+
+<section>
+  <h2>Studies</h2>
+  <div class="card">
+    <div class="controls">
+      <input type="search" id="q" placeholder="Search title or accession (PRJNA…, GSE…)" aria-label="Search studies">
+      <select id="fclass" aria-label="Sample type"><option value="">All sample types</option></select>
+      <select id="fevent" aria-label="Event"><option value="">All events</option></select>
+      <select id="faccess" aria-label="Access"><option value="">Open + controlled</option><option value="open">Open reads</option><option value="controlled">Controlled (dbGaP)</option></select>
+    </div>
+    <div class="controls">
+      <input type="search" id="acc" placeholder="Find a sample or run (SAMN…, SRR…)" aria-label="Find accession"><button id="go">Find</button>
+      <span id="accmsg" class="muted" style="align-self:center;font-size:13px"></span>
+    </div>
+    <p class="sub">Filled chips: events in the samples' own metadata. Outlined: events named in the study description only.</p>
+    <div class="scroll"><table id="st"><thead><tr><th>Study</th><th>Title</th><th class="n">Samples</th><th>Types</th><th>Events</th><th>Links</th></tr></thead><tbody></tbody></table></div>
+    <div class="pager"><button id="prev">Previous</button><span id="pg"></span><button id="next">Next</button></div>
+  </div>
+</section>
+
+<section id="detail">
+  <h2 id="d-title">Study</h2>
+  <div class="card">
+    <div id="d-meta" class="kv"></div>
+    <p id="d-desc" style="font-size:14px;color:var(--text-secondary)"></p>
+    <div class="controls"><a id="d-json" href="#">This study as JSON</a></div>
+    <div class="scroll"><table id="dt"><thead><tr><th>Sample</th><th>Type</th><th>Metadata</th><th>Labels</th><th>Runs</th></tr></thead><tbody></tbody></table></div>
+  </div>
+</section>
+
+<section id="bulk">
+  <h2>Bulk download</h2>
+  <div class="card"><p class="sub">Gzipped CSV. Large tables are split into parts.</p><div id="files"></div></div>
+</section>
+
+<section id="agents">
+  <h2>For agents</h2>
+  <div class="card" style="font-size:14px">
+    <p>Everything is static JSON over HTTPS with CORS open; no key, no rate limit beyond the host's. Start at
+       <a href="api/index.json"><code>api/index.json</code></a> (counts, endpoints, field definitions) or <a href="llms.txt"><code>llms.txt</code></a>.</p>
+<pre>GET api/studies.json                 every study (accession, title, samples, types, events)
+GET api/studies/{PRJ...}.json        one study: samples, all attributes, runs, labels
+GET api/lookup/{last 2 chars}.json   sample/run accession -> study accession
+GET data/*.csv.gz                    bulk tables (samples, runs, attributes, studies, labels)</pre>
+    <p class="muted">Example: a run SRR12345678 → <code>api/lookup/78.json</code> → its study → <code>api/studies/PRJNA….json</code>.</p>
+  </div>
+</section>
+
+<footer>Sources: NCBI SRA and BioSample, EMBL-EBI ENA. Metadata as deposited by the submitters; labels and harmonisation CC BY 4.0.
+Labels are machine-made; see the quality section before relying on them.</footer>
+</div>
+<div id="tip" role="tooltip"></div>
+<script>
+const $ = s => document.querySelector(s);
+const fmt = n => (n ?? 0).toLocaleString("en-US");
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const tip = $("#tip");
+function showTip(e, html) { tip.innerHTML = html; tip.style.display = "block";
+  const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8), y = e.clientY + 14;
+  tip.style.left = x + "px"; tip.style.top = (y + tip.offsetHeight > innerHeight ? e.clientY - tip.offsetHeight - 10 : y) + "px"; }
+const hideTip = () => tip.style.display = "none";
+
+function hbars(el, rows, label, value, unit) {
+  const max = Math.max(1, ...rows.map(value));
+  el.innerHTML = rows.length ? "" : '<p class="muted" style="font-size:13px">No labels yet.</p>';
+  for (const r of rows) {
+    const d = document.createElement("div"); d.className = "bar-row";
+    d.innerHTML = `<span class="lab" title="${esc(label(r))}">${esc(label(r))}</span><span class="track"><span class="fill" style="display:block;width:${(100 * value(r) / max).toFixed(2)}%"></span></span><span class="num">${fmt(value(r))}</span>`;
+    d.addEventListener("mousemove", e => showTip(e, `<b>${esc(label(r))}</b><br>${fmt(value(r))} ${unit}`));
+    d.addEventListener("mouseleave", hideTip);
+    el.appendChild(d);
+  }
+  const t = document.createElement("details"); t.className = "tv";
+  t.innerHTML = `<summary>Table</summary><table><tr><th></th><th class="n">${unit}</th></tr>${rows.map(r => `<tr><td>${esc(label(r))}</td><td class="n">${fmt(value(r))}</td></tr>`).join("")}</table>`;
+  el.appendChild(t);
+}
+function cols(el, rows) {
+  const max = Math.max(1, ...rows.map(r => r.samples));
+  el.innerHTML = `<div class="cols">${rows.map(r => `<div class="c" style="height:${(100 * r.samples / max).toFixed(2)}%" data-y="${r.year}" data-n="${r.samples}"></div>`).join("")}</div>
+    <div class="axis"><span>${rows[0]?.year ?? ""}</span><span>${rows.at(-1)?.year ?? ""}</span></div>`;
+  el.querySelectorAll(".c").forEach(c => { c.addEventListener("mousemove", e => showTip(e, `<b>${c.dataset.y}</b><br>${fmt(+c.dataset.n)} samples`)); c.addEventListener("mouseleave", hideTip); });
+  const t = document.createElement("details"); t.className = "tv";
+  t.innerHTML = `<summary>Table</summary><table><tr><th>Year</th><th class="n">Samples</th></tr>${rows.map(r => `<tr><td>${r.year}</td><td class="n">${fmt(r.samples)}</td></tr>`).join("")}</table>`;
+  el.appendChild(t);
+}
+const pct = v => Array.isArray(v) ? `${(100 * v[0]).toFixed(1)}% <span class="muted">(${(100 * v[1]).toFixed(1)}–${(100 * v[2]).toFixed(1)}, n=${fmt(v[3])})</span>` : (v == null ? '<span class="muted">—</span>' : esc(v));
+const QNAMES = {T1_structured_fields: "T1 Structured fields", T2_masked_fields: "T2 Fields masked", T3_timing: "T3 Timing",
+  T4_healthy_controls: "T4 Healthy controls", T5_in_vitro: "T5 In vitro samples", T6_student_vs_teacher: "T6 Student vs teacher", coverage: "Coverage"};
+function quality(q) {
+  if (!q) { $("#quality").innerHTML = '<p class="muted" style="font-size:13px">Quality tests have not been run on this release yet.</p>'; return; }
+  let h = '<table><tr><th>Test</th><th>Measure</th><th>Result</th></tr>';
+  for (const [k, name] of Object.entries(QNAMES)) {
+    const t = q[k]; if (!t) continue;
+    for (const [m, v] of Object.entries(t)) {
+      if (m === "recall_by_event") continue;
+      h += `<tr><td>${name}</td><td>${esc(m.replaceAll("_", " "))}</td><td>${typeof v === "number" ? fmt(v) : pct(v)}</td></tr>`;
+    }
+  }
+  $("#quality").innerHTML = h + "</table>";
+}
+
+let studies = [], view = [], page = 0, S = null;
+const PER = 50;
+function render() {
+  const q = $("#q").value.trim().toLowerCase(), c = $("#fclass").value, ev = $("#fevent").value, ac = $("#faccess").value;
+  view = studies.filter(s => (!q || s.study_accession.toLowerCase().includes(q) || (s.title || "").toLowerCase().includes(q) || (s.geo_series || "").toLowerCase().includes(q))
+    && (!c || s.classes[c]) && (!ev || s.events[ev] || (s.study_events || []).includes(ev)) && (!ac || s.access === ac));
+  page = Math.min(page, Math.max(0, Math.ceil(view.length / PER) - 1));
+  const rows = view.slice(page * PER, page * PER + PER);
+  $("#st tbody").innerHTML = rows.map(s => `<tr class="click" data-a="${esc(s.study_accession)}">
+    <td><code>${esc(s.study_accession)}</code>${s.access === "controlled" ? '<br><span class="muted">dbGaP</span>' : ""}</td>
+    <td>${esc(s.title)}</td><td class="n">${fmt(s.n_samples)}</td>
+    <td>${Object.keys(s.classes).map(k => `<span class="chip">${esc(S.names[k] || k)}</span>`).join("")}</td>
+    <td>${Object.keys(s.events).slice(0, 4).map(k => `<span class="chip">${esc(S.events[k] || k)}</span>`).join("")}${(s.study_events || []).filter(k => !s.events[k]).slice(0, 3).map(k => `<span class="chip" style="background:none;border:1px solid var(--border)" title="from the study description">${esc(S.events[k] || k)}</span>`).join("") || (Object.keys(s.events).length ? "" : '<span class="muted">—</span>')}</td>
+    <td>${(s.geo_series || "").split(";").filter(Boolean).map(g => `<a href="https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=${g}" target="_blank" rel="noopener">${g}</a>`).join(" ")}
+        ${(s.pubmed || "").split(";").filter(Boolean).slice(0, 2).map(p => `<a href="https://pubmed.ncbi.nlm.nih.gov/${p}/" target="_blank" rel="noopener">PMID ${p}</a>`).join(" ")}</td></tr>`).join("");
+  $("#pg").textContent = `${fmt(view.length)} studies · page ${page + 1} of ${Math.max(1, Math.ceil(view.length / PER))}`;
+  $("#st tbody").querySelectorAll("tr").forEach(tr => tr.addEventListener("click", () => openStudy(tr.dataset.a)));
+}
+async function openStudy(acc, highlight) {
+  const r = await fetch(`api/studies/${encodeURIComponent(acc)}.json`); if (!r.ok) return;
+  const d = await r.json();
+  $("#detail").classList.add("open");
+  $("#d-title").textContent = `${d.study_accession} · ${d.title || ""}`;
+  $("#d-meta").innerHTML = `<b>${fmt(d.n_samples)}</b> samples · ${d.secondary_study_accession ? `<b>${esc(d.secondary_study_accession)}</b> · ` : ""}${d.geo_series ? `GEO <b>${esc(d.geo_series)}</b> · ` : ""}<a href="https://www.ebi.ac.uk/ena/browser/view/${esc(d.study_accession)}" target="_blank" rel="noopener">ENA</a>`;
+  $("#d-desc").textContent = d.description || "";
+  $("#d-json").href = `api/studies/${encodeURIComponent(acc)}.json`;
+  $("#dt tbody").innerHTML = d.samples.slice(0, 500).map(s => `<tr${s.sample_accession === highlight || s.runs.some(x => x.run_accession === highlight) ? ' style="outline:2px solid var(--series-1)"' : ""}>
+    <td><code>${esc(s.sample_accession)}</code><br><span class="muted">${esc(s.title)}</span></td>
+    <td>${esc(S.names[s.blood_class] || s.blood_class)}</td>
+    <td class="kv">${s.attributes.filter(a => !/^(ena-|insdc|biosamplemodel|ncbi submission|organism)/i.test(a[0])).slice(0, 12).map(a => `${esc(a[0])}: <b>${esc(a[1])}</b>`).join("<br>")}</td>
+    <td>${s.labels.filter(l => l.level === "sample").map(l => `<span class="chip" title="${esc(l.evidence)}">${esc(S.events[l.event_code] || l.event_code)} · ${esc(l.certainty)}${l.delta_days != null ? ` · ${(+l.delta_days).toFixed(0)} d` : ""}</span>`).join("") || '<span class="muted">—</span>'}</td>
+    <td>${s.runs.slice(0, 4).map(x => `<a href="https://www.ncbi.nlm.nih.gov/sra/${esc(x.run_accession)}" target="_blank" rel="noopener">${esc(x.run_accession)}</a>`).join("<br>")}${s.runs.length > 4 ? `<br><span class="muted">+${s.runs.length - 4}</span>` : ""}</td></tr>`).join("")
+    + (d.samples.length > 500 ? `<tr><td colspan="5" class="muted">First 500 of ${fmt(d.samples.length)} samples shown; the JSON has all.</td></tr>` : "");
+  $("#detail").scrollIntoView({behavior: "smooth"});
+}
+async function findAcc() {
+  const a = $("#acc").value.trim().toUpperCase(); if (a.length < 3) return;
+  $("#accmsg").textContent = "Looking up…";
+  const r = await fetch(`api/lookup/${a.slice(-2)}.json`);
+  const m = r.ok ? await r.json() : {};
+  if (m[a]) { $("#accmsg").textContent = `${a} → ${m[a]}`; openStudy(m[a], a); }
+  else $("#accmsg").textContent = `${a} is not in this release.`;
+}
+(async () => {
+  const [sum, idx, st] = await Promise.all(["api/summary.json", "api/index.json", "api/studies.json"].map(u => fetch(u).then(r => r.json())));
+  S = {names: Object.fromEntries(sum.by_class.map(c => [c.code, c.name])), events: idx.fields["labels.event_code"]};
+  const c = sum.counts;
+  $("#gen").textContent = `Release ${sum.version} · ${sum.generated}`;
+  $("#tiles").innerHTML = [["Samples", c.samples, `${fmt(c.open_samples)} with open reads`], ["Studies", c.studies, "BioProjects"],
+    ["Runs", c.runs, "SRR / ERR / DRR"], ["Samples labelled", c.samples_labelled, `${fmt(c.label_rows)} label rows`]]
+    .map(([k, v, s]) => `<div class="tile"><div class="k">${k}</div><div class="v">${fmt(v)}</div><div class="s">${s}</div></div>`).join("");
+  hbars($("#c-class"), sum.by_class, r => r.name, r => r.samples, "samples");
+  hbars($("#c-events"), sum.events.slice(0, 15), r => r.name, r => r.samples, "samples");
+  hbars($("#c-time"), sum.time_buckets.filter(b => b.labels), r => r.name, r => r.labels, "labels");
+  cols($("#c-year"), sum.by_year);
+  quality(sum.quality);
+  for (const k of sum.by_class) $("#fclass").insertAdjacentHTML("beforeend", `<option value="${k.code}">${esc(k.name)}</option>`);
+  for (const e of sum.events) $("#fevent").insertAdjacentHTML("beforeend", `<option value="${e.code}">${esc(e.name)}</option>`);
+  $("#files").innerHTML = Object.entries(idx.endpoints.bulk).map(([k, fs]) => `<div style="margin:4px 0"><b style="font-weight:600">${k}</b>: ${fs.map(f => `<a href="${f}">${f.split("/").pop()}</a>`).join(", ")}</div>`).join("");
+  studies = st; render();
+  ["#q", "#fclass", "#fevent", "#faccess"].forEach(s => $(s).addEventListener("input", () => { page = 0; render(); }));
+  $("#prev").onclick = () => { page = Math.max(0, page - 1); render(); };
+  $("#next").onclick = () => { page++; render(); };
+  $("#go").onclick = findAcc; $("#acc").addEventListener("keydown", e => e.key === "Enter" && findAcc());
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (h.get("study")) openStudy(h.get("study")); else if (h.get("acc")) { $("#acc").value = h.get("acc"); findAcc(); }
+})();
+</script>
+</body>
+</html>
