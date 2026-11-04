@@ -13,7 +13,7 @@ All paths are relative to this file's location.
 ## Endpoints
 
 - [api/studies.json](api/studies.json): every study: study_accession, title, n_samples, n_runs, classes (sample type -> count), events (event -> samples), geo_series, pubmed, access
-- api/studies/{study_accession}.json: one study (e.g. PRJNA123456) with every sample: attributes [[name, value], ...], runs (run_accession, layout, instrument, read_count, ...), labels
+- api/studies/{study_accession}.json: one study (e.g. PRJNA123456) with every sample: attributes [[name, value], ...], runs (run_accession, layout, instrument, read_count, ...), labels (from the sample's own metadata); study_labels at the top level (from the study description, apply to all its samples)
 - api/lookup/{XX}.json: map of sample and run accessions to study_accession, where XX is the last two characters of the accession (SRR12345678 -> api/lookup/78.json)
 - data/samples.csv.gz, data/runs.csv.gz, data/attributes.csv.gz, data/studies.csv.gz, data/labels.csv.gz: bulk tables (big ones split into -2, -3 ... parts; api/index.json lists the parts)
 

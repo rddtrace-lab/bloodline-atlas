@@ -237,6 +237,12 @@ function validation(v, events) {
   if (Object.keys(per).length) h += `<details class="tv"><summary>By event</summary><table><tr><th>Event</th><th>sensitivity</th><th>specificity</th><th>kappa</th><th class="n">n</th></tr>${Object.entries(per).map(([e, p]) => `<tr><td>${esc(events[e] || e)}</td><td>${ci(p.sensitivity)}</td><td>${ci(p.specificity)}</td><td>${ci(p.kappa)}</td><td class="n">${fmt(p.n)}</td></tr>`).join("")}</table></details>`;
   if (v.timing) h += `<p class="kv">Timing vs curated time points: bucket agreement <b>${ci(v.timing.bucket_agreement)}</b>, within 1 day <b>${ci(v.timing.within_1_day)}</b> (n=${fmt(v.timing.model_gave_a_time)})</p>`;
   if (v.curated_controls) h += `<p class="kv">Curated controls with any event label: <b>${ci(v.curated_controls.any_event)}</b> (n=${fmt(v.curated_controls.n)})</p>`;
+  const im = v.immunespace;
+  if (im) {
+    const p = im.model_sample_or_study?.pooled || im.model_sample?.pooled || {};
+    h += `<h3 style="font-size:14px;margin:14px 0 4px">ImmuneSpace curated vaccine studies</h3>
+      <p class="kv">${fmt(im.reference.samples)} vaccinated samples in ${fmt(im.reference.datasets)} studies: precision <b>${ci(p.precision)}</b>, sensitivity <b>${ci(p.sensitivity)}</b>${im.timing ? `; timing within 1 day <b>${ci(im.timing.within_1_day)}</b> (n=${fmt(im.timing.model_gave_a_time)})` : ""}</p>`;
+  }
   $("#val").innerHTML = h;
 }
 function bio(b) {

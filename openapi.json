@@ -46,6 +46,7 @@
     "Study": {"type": "object", "properties": {
       "study_accession": {"type": "string"}, "secondary_study_accession": {"type": "string"}, "title": {"type": "string"},
       "description": {"type": "string"}, "pubmed": {"type": "string"}, "geo_series": {"type": "string"}, "n_samples": {"type": "integer"},
+      "study_labels": {"type": "array", "description": "labels read from the study description; they apply to every sample of the study", "items": {"$ref": "#/components/schemas/Label"}},
       "samples": {"type": "array", "items": {"$ref": "#/components/schemas/Sample"}}}}
   }}
 }
